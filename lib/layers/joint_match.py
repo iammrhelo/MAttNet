@@ -12,7 +12,7 @@ from layers.visual_encoder import LocationEncoder, SubjectEncoder, RelationEncod
 
 """
 Simple Matching function for
-- visual_input (n, vis_dim)  
+- visual_input (n, vis_dim)
 - lang_input (n, vis_dim)
 forward them through several mlp layers and finally inner-product, get cossim
 """
@@ -33,7 +33,7 @@ class Matching(nn.Module):
                                      nn.Dropout(jemb_drop_out),
                                      nn.Linear(jemb_dim, jemb_dim),
                                      nn.BatchNorm1d(jemb_dim)
-                                     ) 
+                                     )
 
   def forward(self, visual_input, lang_input):
     """
@@ -57,9 +57,9 @@ class Matching(nn.Module):
 
 """
 Relation Matching function for
-- visual_input (n, m, vis_dim)  
+- visual_input (n, m, vis_dim)
 - lang_input   (n, vis_dim)
-- masks        (n, m) 
+- masks        (n, m)
 forward them through several mlp layers and finally inner-product, get cossim (n, )
 """
 class RelationMatching(nn.Module):
@@ -79,7 +79,7 @@ class RelationMatching(nn.Module):
                                      nn.Dropout(jemb_drop_out),
                                      nn.Linear(jemb_dim, jemb_dim),
                                      nn.BatchNorm1d(jemb_dim)
-                                     ) 
+                                     )
   def forward(self, visual_input, lang_input, masks):
     """Inputs:
     - visual_input : (n, m, vis_dim)
@@ -106,7 +106,7 @@ class RelationMatching(nn.Module):
     cossim = masks * cossim       # (n, m)
     # pick max
     cossim, ixs = torch.max(cossim, 1) # (n, ), (n, )
-    
+
     return cossim.view(-1, 1), ixs
 
 
@@ -139,20 +139,20 @@ class JointMatching(nn.Module):
     self.loc_attn = PhraseAttention(hidden_size * num_dirs)
     self.rel_attn = PhraseAttention(hidden_size * num_dirs)
 
-    # visual matching 
+    # visual matching
     self.sub_encoder = SubjectEncoder(opt)
-    self.sub_matching = Matching(opt['fc7_dim']+opt['jemb_dim'], opt['word_vec_size'], 
+    self.sub_matching = Matching(opt['fc7_dim']+opt['jemb_dim'], opt['word_vec_size'],
                                  opt['jemb_dim'], opt['jemb_drop_out'])
 
     # location matching
     self.loc_encoder = LocationEncoder(opt)
-    self.loc_matching = Matching(opt['jemb_dim'], opt['word_vec_size'], 
+    self.loc_matching = Matching(opt['jemb_dim'], opt['word_vec_size'],
                                  opt['jemb_dim'], opt['jemb_drop_out'])
 
     # relation matching
     self.rel_encoder  = RelationEncoder(opt)
     self.rel_matching = RelationMatching(opt['jemb_dim'], opt['word_vec_size'],
-                                         opt['jemb_dim'], opt['jemb_drop_out']) 
+                                         opt['jemb_dim'], opt['jemb_drop_out'])
 
 
   def forward(self, pool5, fc7, lfeats, dif_lfeats, cxt_fc7, cxt_lfeats, labels):
@@ -163,10 +163,11 @@ class JointMatching(nn.Module):
     - lfeats      : (n, 5)
     - dif_lfeats  : (n, 25)
     - labels      : (n, seq_len)
+
     Output:
     - scores        : (n, )
     - sub_grid_attn : (n, 49)
-    - sub_attn      : (n, seq_len) attn on subjective words of expression 
+    - sub_attn      : (n, seq_len) attn on subjective words of expression
     - loc_attn      : (n, seq_len) attn on location words of expression
     - rel_attn      : (n, seq_len) attn on relation words of expression
     - rel_ixs       : (n, ) selected context object
@@ -177,7 +178,7 @@ class JointMatching(nn.Module):
     context, hidden, embedded = self.rnn_encoder(labels)
 
     # weights on [sub; loc]
-    weights = F.softmax(self.weight_fc(hidden)) # (n, 3)
+    weights = F.softmax(self.weight_fc(hidden), dim=-1) # (n, 3)
 
     # subject matching
     sub_attn, sub_phrase_emb = self.sub_attn(context, embedded, labels)
@@ -195,8 +196,8 @@ class JointMatching(nn.Module):
     rel_matching_scores, rel_ixs = self.rel_matching(rel_feats, rel_phrase_emb, masks) # (n, 1), (n, )
 
     # final scores
-    scores = (weights * torch.cat([sub_matching_scores, 
-                                   loc_matching_scores, 
+    scores = (weights * torch.cat([sub_matching_scores,
+                                   loc_matching_scores,
                                    rel_matching_scores], 1)).sum(1) # (n, )
 
     return scores, sub_grid_attn, sub_attn, loc_attn, rel_attn, rel_ixs, weights, att_scores

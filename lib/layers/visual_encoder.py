@@ -60,7 +60,7 @@ class SubjectEncoder(nn.Module):
     self.att_normalizer   = Normalize_Scale(opt['jemb_dim'],  opt['visual_init_norm'])
     self.phrase_normalizer= Normalize_Scale(opt['word_vec_size'], opt['visual_init_norm'])
     self.att_fuse = nn.Sequential(nn.Linear(opt['pool5_dim']+opt['fc7_dim'], opt['jemb_dim']),
-                                  nn.BatchNorm1d(opt['jemb_dim']), 
+                                  nn.BatchNorm1d(opt['jemb_dim']),
                                   nn.ReLU())
     self.att_dropout = nn.Dropout(opt['visual_drop_out'])
     self.att_fc = nn.Linear(opt['jemb_dim'], opt['num_atts'])
@@ -90,7 +90,7 @@ class SubjectEncoder(nn.Module):
     fc7 = fc7.transpose(1,2).contiguous().view(-1, self.fc7_dim) # (n x 49, 2048)
     fc7 = self.fc7_normalizer(fc7) # (nx49, 2048)
 
-    # att_feats   
+    # att_feats
     att_feats = self.att_fuse(torch.cat([pool5, fc7], 1)) # (nx49, 512)
 
     # predict atts
@@ -101,11 +101,11 @@ class SubjectEncoder(nn.Module):
     # compute spatial attention
     att_feats = self.att_normalizer(att_feats)     # (nx49, 512)
     visual_feats = torch.cat([fc7, att_feats], 1)  # (nx49, 2048+512)
-    phrase_emb = self.phrase_normalizer(phrase_emb)# (n, word_vec_size) 
+    phrase_emb = self.phrase_normalizer(phrase_emb)# (n, word_vec_size)
     phrase_emb = phrase_emb.unsqueeze(1).expand(batch, grids, self.word_vec_size) # (n, 49, word_vec_size)
-    phrase_emb = phrase_emb.contiguous().view(-1, self.word_vec_size) # (nx49, word_vec_size) 
+    phrase_emb = phrase_emb.contiguous().view(-1, self.word_vec_size) # (nx49, word_vec_size)
     attn = self.attn_fuse(torch.cat([visual_feats, phrase_emb], 1)) # (nx49, 1)
-    attn = F.softmax(attn.view(batch, grids)) # (n, 49)
+    attn = F.softmax(attn.view(batch, grids), dim=-1) # (n, 49)
 
     # weighted sum
     attn3 = attn.unsqueeze(1)  # (n, 1, 49)
@@ -132,7 +132,7 @@ class SubjectEncoder(nn.Module):
     fc7 = fc7.transpose(1,2).contiguous().view(-1, self.fc7_dim) # (n x 49, 2048)
     fc7 = self.fc7_normalizer(fc7) # (nx49, 2048)
 
-    # att_feats   
+    # att_feats
     att_feats = self.att_fuse(torch.cat([pool5, fc7], 1)) # (nx49, 512)
 
     # predict atts

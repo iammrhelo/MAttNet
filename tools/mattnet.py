@@ -83,7 +83,7 @@ class MattNet():
     print('MatNet [%s_%s\'s %s] loaded in %.2f seconds.' % \
           (args.dataset, args.splitBy, args.model_id, time.time()-tic))
 
-    # load mask r-cnn 
+    # load mask r-cnn
     tic = time.time()
     args.imdb_name = self.model_opt['imdb_name']
     args.net_name = self.model_opt['net_name']
@@ -99,7 +99,12 @@ class MattNet():
     tic = time.time()
     model = JointMatching(opt)
     checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint['model'].state_dict())
+
+
+    model_state_dict = model.state_dict()
+    check_state_dict = checkpoint['model'].state_dict()
+    model.load_state_dict(check_state_dict, strict=False)
+    #model.load_state_dict(checkpoint['model'].state_dict())
     model.eval()
     model.cuda()
     return model
@@ -108,7 +113,7 @@ class MattNet():
     """
     Arguments:
     - img_path   : path to image
-    - nms_thresh : nms threshold 
+    - nms_thresh : nms threshold
     - conf_thresh: confidence threshold [0,1]
     Return "data" is a dict of
     - det_ids: list of det_ids, order consistent with dets and masks
@@ -129,7 +134,7 @@ class MattNet():
     # 1st step: detect objects
     scores, boxes = self.mrcn.predict(img_path)
 
-    # get head feats, i.e., net_conv 
+    # get head feats, i.e., net_conv
     net_conv = self.mrcn.net._predictions['net_conv']  # Variable cuda (1, 1024, h, w)
     im_info = self.mrcn.net._im_info  # [[H, W, im_scale]]
 
@@ -148,7 +153,7 @@ class MattNet():
       # detections: list of (n, 5), [xyxyc]
       for detection in detections:
         x1, y1, x2, y2, sc = detection
-        det = {'det_id': det_id, 
+        det = {'det_id': det_id,
                'box': [x1, y1, x2-x1+1, y2-y1+1],
                'category_name': category_name,
                'category_id': self.imdb._class_to_coco_cat_id[category_name],
@@ -183,7 +188,7 @@ class MattNet():
     data['dets'] = dets
     data['masks'] = masks
     data['cxt_det_ids'] = cxt_det_ids
-    data['Feats'] = {'pool5': pool5, 'fc7': fc7, 'lfeats': lfeats, 'dif_lfeats': dif_lfeats, 
+    data['Feats'] = {'pool5': pool5, 'fc7': fc7, 'lfeats': lfeats, 'dif_lfeats': dif_lfeats,
                      'cxt_fc7': cxt_fc7, 'cxt_lfeats': cxt_lfeats}
     return data
 
@@ -218,15 +223,16 @@ class MattNet():
     labels = Variable(torch.from_numpy(labels).long().cuda())
     expanded_labels = labels.expand(len(det_ids), labels.size(1)) # (n, sent_length)
     scores, sub_grid_attn, sub_attn, loc_attn, rel_attn, rel_ixs, weights, att_scores = \
-          self.model(Feats['pool5'], Feats['fc7'], Feats['lfeats'], Feats['dif_lfeats'], 
-                     Feats['cxt_fc7'], Feats['cxt_lfeats'], 
-                     expanded_labels) 
+          self.model(Feats['pool5'], Feats['fc7'], Feats['lfeats'], Feats['dif_lfeats'],
+                     Feats['cxt_fc7'], Feats['cxt_lfeats'],
+                     expanded_labels)
 
     # move to numpy
     scores = scores.data.cpu().numpy()
     pred_ix = np.argmax(scores)
     pred_det_id = det_ids[pred_ix]
-    att_scores = F.sigmoid(att_scores)  # (n, num_atts)
+    #att_scores = F.sigmoid(att_scores)  # (n, num_atts)
+    att_scores = torch.sigmoid(att_scores)
     rel_ixs = rel_ixs.data.cpu().numpy().tolist()  # (n, )
     rel_ix = rel_ixs[pred_ix]
 
@@ -279,7 +285,7 @@ class MattNet():
       det = Dets[det_id]
       x,y,w,h = det['box']
       ih, iw = im.shape[0], im.shape[1]
-      lfeats[ix] = np.array([[x/iw, y/ih, (x+w-1)/iw, (y+h-1)/ih, w*h/(iw*ih)]], np.float32) 
+      lfeats[ix] = np.array([[x/iw, y/ih, (x+w-1)/iw, (y+h-1)/ih, w*h/(iw*ih)]], np.float32)
     return lfeats
 
 
@@ -304,7 +310,7 @@ class MattNet():
         return -1
       else:
         return 1
-        
+
     det_ids = list(Dets.keys())  # copy in case the raw list is changed
     det_ids = sorted(det_ids, cmp=compare)
     st_det_ids, dt_det_ids = [], []
@@ -314,14 +320,14 @@ class MattNet():
           st_det_ids += [det_id]
         else:
           dt_det_ids += [det_id]
-    return st_det_ids, dt_det_ids  
+    return st_det_ids, dt_det_ids
 
 
   def compute_dif_lfeats(self, det_ids, Dets, topK=5):
     # return ndarray float32 (#det_ids, 5*topK)
     dif_lfeats = np.zeros((len(det_ids), 5*topK), dtype=np.float32)
     for i, ref_det_id in enumerate(det_ids):
-      # reference box 
+      # reference box
       rbox = Dets[ref_det_id]['box']
       rcx, rcy, rw, rh = rbox[0]+rbox[2]/2, rbox[1]+rbox[3]/2, rbox[2], rbox[3]
       # candidate boxes
@@ -339,12 +345,12 @@ class MattNet():
     Arguments:
     - det_ids    : list of det_ids
     - Dets       : each det is {det_id, box, category_id, category_name}
-    - spatial_fc7: (#det_ids, 2048, 7, 7) Variable cuda 
-    Return 
+    - spatial_fc7: (#det_ids, 2048, 7, 7) Variable cuda
+    Return
     - cxt_feats  : Variable cuda (#det_ids, topK, feat_dim)
-    - cxt_lfeats : ndarray (#det_ids, topK, 5) 
+    - cxt_lfeats : ndarray (#det_ids, topK, 5)
     - cxt_det_ids: [[det_id]] of size (#det_ids, topK), padded with -1
-    Note we use neighbouring objects for computing context objects, zeros padded.    
+    Note we use neighbouring objects for computing context objects, zeros padded.
     """
     fc7 = spatial_fc7.mean(3).mean(2)  # (n, 2048)
     topK = opt['num_cxt']

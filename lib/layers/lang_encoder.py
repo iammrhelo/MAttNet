@@ -15,7 +15,7 @@ class RNNEncoder(nn.Module):
     self.variable_lengths = variable_lengths
     self.embedding = nn.Embedding(vocab_size, word_embedding_size)
     self.input_dropout = nn.Dropout(input_dropout_p)
-    self.mlp = nn.Sequential(nn.Linear(word_embedding_size, word_vec_size), 
+    self.mlp = nn.Sequential(nn.Linear(word_embedding_size, word_vec_size),
                              nn.ReLU())
     self.rnn_type = rnn_type
     self.rnn = getattr(nn, rnn_type.upper())(word_vec_size, hidden_size, n_layers,
@@ -43,7 +43,7 @@ class RNNEncoder(nn.Module):
       s2r = {s: r for r, s in enumerate(sort_ixs)} # O(n)
       recover_ixs = [s2r[s] for s in range(len(input_lengths_list))]  # list of int recover ixs
       assert max(input_lengths_list) == input_labels.size(1)
-       
+
       # move to long tensor
       sort_ixs = input_labels.data.new(sort_ixs).long()  # Variable long
       recover_ixs = input_labels.data.new(recover_ixs).long()  # Variable long
@@ -99,7 +99,7 @@ class PhraseAttention(nn.Module):
     - weighted_emb: Variable float (batch, word_vec_size)
     """
     cxt_scores = self.fc(context).squeeze(2) # (batch, seq_len)
-    attn = F.softmax(cxt_scores)  # (batch, seq_len), attn.sum(1) = 1.
+    attn = F.softmax(cxt_scores, dim=-1)  # (batch, seq_len), attn.sum(1) = 1.
 
     # mask zeros
     is_not_zero = (input_labels!=0).float() # (batch, seq_len)

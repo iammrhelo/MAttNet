@@ -40,7 +40,7 @@ def get_imdb_name(imdb_name):
   elif imdb_name == 'coco_minus_refer':
     return {'TRAIN_IMDB': "coco_2014_train_minus_refer_valtest+coco_2014_valminusminival",
             'TEST_IMDB' : "coco_2014_minival"}
-            
+
 class Inference:
 
   def __init__(self, args):
@@ -92,10 +92,10 @@ class Inference:
     # return scores/probs (num_rois, 81), pred_boxes (num_rois, 81*4)
     # in numpy
     im = cv2.imread(img_path)
-    blobs, im_scales = self._get_blobs(im) 
+    blobs, im_scales = self._get_blobs(im)
     im_blob = blobs['data']  # (1, iH, iW, 3)
     blobs['im_info'] = np.array([[im_blob.shape[1], im_blob.shape[2], im_scales[0]]], dtype=np.float32)
-    
+
     # test_image returns cls_score, cls_prob, bbox_pred, rois, net_conv
     _, scores, bbox_pred, rois, net_conv = self.net.test_image(blobs['data'], blobs['im_info'])
 
@@ -122,10 +122,10 @@ class Inference:
     Return:
     - masks   : (n, ih, iw) uint8 [0,1]
     - rles    : list of rle instance
-    """ 
+    """
     im = cv2.imread(img_path)
     blobs, im_scales = self._get_blobs(im)
-    im_blob = blobs['data']  # (1, iH, iW, 3) 
+    im_blob = blobs['data']  # (1, iH, iW, 3)
     blobs['im_info'] = np.array([[im_blob.shape[1], im_blob.shape[2], im_scales[0]]], dtype=np.float32)
 
     # forward
@@ -147,13 +147,13 @@ class Inference:
       rles += [rle]
 
     return masks, rles
-  
+
 
   def extract_head(self, img_path):
     # extract head (1, 1024, im_height*scale/16.0, im_width*scale/16.0) in Variable cuda float
     # and im_info [[ih, iw, scale]] in float32 ndarray
     im = cv2.imread(img_path)
-    blobs, im_scales = self._get_blobs(im) 
+    blobs, im_scales = self._get_blobs(im)
     head_feat = self.net.extract_head(blobs['data'])
     im_info = np.array([[blobs['data'].shape[1], blobs['data'].shape[2], im_scales[0]]])
     return head_feat, im_info.astype(np.float32)
@@ -180,7 +180,7 @@ class Inference:
       pool5 = self.net._roi_pool_layer(net_conv, rois)
     fc7 = self.net._head_to_tail(pool5)
     cls_prob, bbox_pred = self.net._region_classification(fc7)
-    
+
     # add mean and std to bbox_pred if any
     if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
       stds = bbox_pred.data.new(cfg.TRAIN.BBOX_NORMALIZE_STDS).repeat(self.imdb.num_classes).unsqueeze(0).expand_as(bbox_pred)
@@ -260,7 +260,7 @@ class Inference:
 
     spatial_fc7 = self.net.resnet.layer4(pool5)  # (n, 2048, 7, 7)
     return pool5, spatial_fc7
-    
+
   def spatial_fc7_to_prediction(self, spatial_fc7, im_info, ori_boxes):
     """Only used for testing. Testing the above box_to_fc7 [passed]"""
     cls_prob, bbox_pred = self.net._region_classification(spatial_fc7)
@@ -270,7 +270,7 @@ class Inference:
     scaled_boxes = (ori_boxes * im_info[0][2]).astype(np.float32)
     scaled_boxes = Variable(torch.from_numpy(scaled_boxes).cuda())
     rois = torch.cat([batch_inds, scaled_boxes], 1)
-    
+
     # add mean and std to bbox_pred if any
     if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
       stds = bbox_pred.data.new(cfg.TRAIN.BBOX_NORMALIZE_STDS).repeat(self.imdb.num_classes).unsqueeze(0).expand_as(bbox_pred)
