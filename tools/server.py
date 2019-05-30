@@ -54,6 +54,7 @@ def detect():
     expr = args['expr'] # natural language
     b64_img_str = args['b64_img_str'] # image
 
+    print('expr', expr)
     time_stamp = str(int(time.time()))
 
     # Save image to image path
@@ -79,7 +80,7 @@ def test_one_image():
 
     IMAGE_DIR = '../pyutils/mask-faster-rcnn/data/coco/train2014'
     img_path = os.path.join(IMAGE_DIR, 'COCO_train2014_'+str(229598).zfill(12)+'.jpg')
-
+    print('img_path', img_path)
     img_data = mattnet.forward_image(img_path)
 
     expr = 'man in black'
